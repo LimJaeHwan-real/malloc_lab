@@ -356,29 +356,52 @@ static void *coalesce(void *bp)
 }
 
 /*
- * find_fit은 explicit free list 안에서만 적당한 free block을 찾습니다.
- * 이 구현은 first fit이므로, 앞에서부터 보다가 처음 맞는 block을 바로 반환합니다.
+ * find_fit은 explicit free list 안에서 요청 크기에 가장 잘 맞는 free block을 찾습니다.
+ * 이 구현은 best fit이므로, 끝까지 순회하면서 남는 공간이 가장 적은 block을 고릅니다.
  */
 static void *find_fit(size_t asize)
 {
     /* cur은 현재 보고 있는 free block입니다. */
     void *cur = free_listp;
 
+    /* best_bp는 지금까지 찾은 후보 중 가장 잘 맞는 block입니다. */
+    void *best_bp = NULL;
+
+    /* best_size는 지금까지 찾은 후보의 크기입니다. */
+    size_t best_size = 0;
+
     /* free list 끝에 도달할 때까지 순회합니다. */
     while (cur != NULL)
     {
-        /* 현재 block이 충분히 크면 바로 사용합니다. */
-        if (GET_SIZE(HDRP(cur)) >= asize)
+        /* csize는 현재 free block의 전체 크기입니다. */
+        size_t csize = GET_SIZE(HDRP(cur));
+
+        /* 현재 block이 요청 크기를 담을 수 있으면 best 후보와 비교합니다. */
+        if (csize >= asize)
         {
-            return cur;
+            /*
+             * 아직 후보가 없거나,
+             * 현재 block이 이전 후보보다 더 작아서 더 딱 맞으면 후보를 갱신합니다.
+             */
+            if (best_bp == NULL || csize < best_size)
+            {
+                best_bp = cur;
+                best_size = csize;
+            }
+
+            /* 요청 크기와 정확히 같은 block을 찾았으면 더 볼 필요가 없습니다. */
+            if (csize == asize)
+            {
+                break;
+            }
         }
 
         /* 아니면 다음 free block으로 이동합니다. */
         cur = SUCC_PTR(cur);
     }
 
-    /* 끝까지 못 찾으면 NULL을 반환합니다. */
-    return NULL;
+    /* 끝까지 검사한 뒤 가장 잘 맞는 block을 반환합니다. 못 찾았으면 NULL입니다. */
+    return best_bp;
 }
 
 /*
@@ -454,7 +477,7 @@ void *mm_malloc(size_t size)
         asize = MINBLOCKSIZE;
     }
 
-    /* free list에서 first fit으로 맞는 block을 찾아봅니다. */
+    /* free list에서 best fit으로 가장 잘 맞는 block을 찾아봅니다. */
     bp = find_fit(asize);
     if (bp != NULL)
     {
