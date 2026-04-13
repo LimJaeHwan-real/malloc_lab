@@ -57,7 +57,7 @@ team_t team = {
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
 
 /*
- * PACK은 두 정보를 하나의 4바이트 값으로 합칩니다.
+ * PACK은 두 정보를 하나의 word 크기 값으로 합칩니다.
  *
  * size  : 블록 전체 크기(바이트 단위)
  * alloc : 할당된 블록이면 1, free 블록이면 0
