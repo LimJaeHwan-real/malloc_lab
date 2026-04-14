@@ -22,6 +22,8 @@ team_t team = {
  * 3. malloc은 전체 힙을 보지 않고 이 free list에서만 블록을 찾습니다.
  * 4. free된 블록은 리스트로 되돌리고, 주변 free 블록이 있으면 합칩니다.
  * 5. 이 구현은 free list에서 가장 잘 맞는 블록을 찾아내는 best-fit 전략을 사용합니다.
+ * 6. realloc은 가능하면 기존 블록을 그대로 늘이거나 줄여서,
+ *    불필요한 데이터 복사를 줄이는 in-place 재할당을 시도합니다.
  */
 
 /*
@@ -544,18 +546,56 @@ void mm_free(void *ptr)
 }
 
 /*
- * mm_realloc은 이미 할당된 블록의 크기를 바꿉니다.
+ * mm_realloc은 이미 사용 중인 메모리 블록의 크기를 바꾸는 함수입니다.
  *
- * 이 구현은 간단한 방법으로, 새 블록을 만들고 데이터를 복사한 뒤
- * 기존 블록을 해제합니다.
+ * 이 함수의 목표는 "가능하면 주소를 바꾸지 않는 것"입니다.
+ * 주소를 바꾸지 않으면 기존 데이터를 다른 곳으로 복사할 필요가 없고,
+ * 그만큼 속도도 좋아지고 힙 단편화도 줄일 수 있습니다.
+ *
+ * 이 구현은 아래 순서로 처리합니다.
+ *
+ * 1. 현재 블록이 이미 충분히 크면:
+ *    같은 자리에서 그대로 사용합니다.
+ *    만약 너무 크게 잡혀 있으면 뒤쪽을 잘라 free block으로 돌려줍니다.
+ *
+ * 2. 현재 블록이 부족하지만 바로 뒤 블록이 free라면:
+ *    그 free block을 현재 블록에 붙여서 같은 자리에서 확장해 봅니다.
+ *    이것이 흔히 말하는 in-place realloc입니다.
+ *
+ * 3. 현재 블록이 힙의 맨 끝 블록이라면:
+ *    힙을 조금 더 늘린 뒤, 현재 블록을 같은 자리에서 더 크게 만들 수 있습니다.
+ *
+ * 4. 위 방법이 모두 실패하면:
+ *    그때만 새 블록을 할당하고 데이터를 복사한 뒤, 예전 블록을 해제합니다.
  */
 void *mm_realloc(void *ptr, size_t size)
 {
-    /* newptr은 새로 받을 block입니다. */
+    /* newptr은 정말로 새 블록이 필요할 때만 사용할 포인터입니다. */
     void *newptr;
 
-    /* copySize는 실제로 복사할 바이트 수입니다. */
+    /* copySize는 마지막 fallback 경로에서 실제로 복사할 바이트 수입니다. */
     size_t copySize;
+
+    /* oldsize는 현재 블록 전체 크기(header/footer 포함)입니다. */
+    size_t oldsize;
+
+    /* asize는 새 요청을 블록 단위로 바꾼 뒤의 실제 목표 크기입니다. */
+    size_t asize;
+
+    /* remain은 블록을 줄였을 때 뒤에 남는 공간 크기입니다. */
+    size_t remain;
+
+    /* next_bp는 현재 블록 바로 뒤에 붙어 있는 다음 블록입니다. */
+    void *next_bp;
+
+    /* next_size는 다음 블록의 전체 크기입니다. */
+    size_t next_size;
+
+    /* total_size는 현재 블록과 다음 free 블록을 합쳤을 때의 총 크기입니다. */
+    size_t total_size;
+
+    /* extend_size는 힙 맨 끝에서 같은 자리 확장을 할 때 추가로 필요한 크기입니다. */
+    size_t extend_size;
 
     /* realloc(NULL, size)는 malloc(size)와 같습니다. */
     if (ptr == NULL)
@@ -570,7 +610,128 @@ void *mm_realloc(void *ptr, size_t size)
         return NULL;
     }
 
-    /* 새 크기에 맞는 block을 먼저 하나 할당합니다. */
+    /*
+     * realloc도 malloc과 같은 방식으로 "실제로 필요한 블록 크기"를 계산합니다.
+     *
+     * 사용자가 요청한 payload 크기에 header/footer 공간을 더하고,
+     * free list용 포인터를 담을 수 있도록 최소 블록 크기도 보장합니다.
+     */
+    asize = ALIGN(size + DSIZE);
+    if (asize < MINBLOCKSIZE)
+    {
+        asize = MINBLOCKSIZE;
+    }
+
+    /* 지금 블록의 현재 크기를 읽어 둡니다. */
+    oldsize = GET_SIZE(HDRP(ptr));
+
+    /*
+     * 경우 1. 현재 블록이 이미 충분히 크다면 굳이 옮길 필요가 없습니다.
+     *
+     * 이때 남는 공간이 너무 작으면 그냥 그대로 두고,
+     * 충분히 크면 뒤쪽을 잘라서 새로운 free block으로 돌려줍니다.
+     */
+    if (asize <= oldsize)
+    {
+        remain = oldsize - asize;
+
+        /* 남는 조각도 독립적인 free block으로 살 수 있을 만큼 크면 분할합니다. */
+        if (remain >= MINBLOCKSIZE)
+        {
+            void *split_bp;
+
+            /* 앞부분은 계속 사용 중인 블록으로 남깁니다. */
+            PUT(HDRP(ptr), PACK(asize, 1));
+            PUT(FTRP(ptr), PACK(asize, 1));
+
+            /*
+             * 잘라낸 뒤쪽 조각은 새로운 free block입니다.
+             * 이 조각은 다음 블록과 이어 붙을 수도 있으므로 coalesce에 맡깁니다.
+             */
+            split_bp = NEXT_BLKP(ptr);
+            PUT(HDRP(split_bp), PACK(remain, 0));
+            PUT(FTRP(split_bp), PACK(remain, 0));
+            coalesce(split_bp);
+        }
+
+        return ptr;
+    }
+
+    /*
+     * 여기까지 왔다는 것은 "현재 블록만으로는 부족하다"는 뜻입니다.
+     * 이제 바로 뒤 블록을 붙여서 같은 자리에서 확장할 수 있는지 봅니다.
+     */
+    next_bp = NEXT_BLKP(ptr);
+    next_size = GET_SIZE(HDRP(next_bp));
+
+    /*
+     * 경우 2. 바로 뒤 블록이 free라면, 그 공간을 합쳐서 제자리 확장을 시도합니다.
+     *
+     * explicit free list에서는 free block이 목록에 연결되어 있으므로,
+     * 실제로 붙여 쓰기 전에 먼저 free list에서 제거해야 합니다.
+     */
+    if (!GET_ALLOC(HDRP(next_bp)))
+    {
+        total_size = oldsize + next_size;
+
+        if (total_size >= asize)
+        {
+            remove_free_block(next_bp);
+
+            /*
+             * 합친 뒤에도 남는 공간이 크면 다시 나눕니다.
+             * 그러면 필요한 만큼만 사용하고 나머지는 free block으로 재활용할 수 있습니다.
+             */
+            if ((total_size - asize) >= MINBLOCKSIZE)
+            {
+                void *split_bp;
+
+                PUT(HDRP(ptr), PACK(asize, 1));
+                PUT(FTRP(ptr), PACK(asize, 1));
+
+                split_bp = NEXT_BLKP(ptr);
+                PUT(HDRP(split_bp), PACK(total_size - asize, 0));
+                PUT(FTRP(split_bp), PACK(total_size - asize, 0));
+                coalesce(split_bp);
+            }
+            else
+            {
+                /* 남는 공간이 너무 작으면 통째로 현재 블록에 붙여 버립니다. */
+                PUT(HDRP(ptr), PACK(total_size, 1));
+                PUT(FTRP(ptr), PACK(total_size, 1));
+            }
+
+            return ptr;
+        }
+    }
+
+    /*
+     * 경우 3. 현재 블록이 힙의 맨 끝에 있다면, 힙을 조금 더 늘려서
+     * 같은 주소를 유지한 채 블록을 키울 수 있습니다.
+     *
+     * 다음 블록 크기가 0이라는 것은 epilogue header, 즉 힙의 끝이라는 뜻입니다.
+     */
+    if (next_size == 0)
+    {
+        extend_size = asize - oldsize;
+
+        /*
+         * mem_sbrk가 성공하면 힙 끝이 뒤로 밀리므로,
+         * 현재 블록의 크기와 footer, 새 epilogue를 다시 기록해 주면 됩니다.
+         */
+        if (mem_sbrk(extend_size) != (void *)-1)
+        {
+            PUT(HDRP(ptr), PACK(oldsize + extend_size, 1));
+            PUT(FTRP(ptr), PACK(oldsize + extend_size, 1));
+            PUT(HDRP(NEXT_BLKP(ptr)), PACK(0, 1));
+            return ptr;
+        }
+    }
+
+    /*
+     * 경우 4. 같은 자리 확장이 불가능하면 그때만 새 블록을 받습니다.
+     * 이 경로가 가장 비싸기 때문에 가능한 한 마지막에 사용합니다.
+     */
     newptr = mm_malloc(size);
     if (newptr == NULL)
     {
