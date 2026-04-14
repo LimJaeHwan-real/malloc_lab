@@ -1,121 +1,184 @@
-<svg width="1860" height="1120" viewBox="0 0 1860 1120" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
-  <title id="title">Three-way allocator comparison</title>
-  <desc id="desc">Comparison of implicit first fit, explicit first fit, and explicit best fit allocator results from mdriver -v.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="1650" height="760" viewBox="0 0 1650 760" role="img" aria-labelledby="title desc">
+  <title id="title">Key Trace Comparison</title>
+  <desc id="desc">Readable comparison table for three allocator strategies across four key traces.</desc>
   <defs>
     <style>
-      .bg { fill: #161b22; }
-      .panel { fill: #1f242d; stroke: #30363d; stroke-width: 2; }
-      .title { fill: #f0f6fc; font: 700 32px 'SFMono-Regular', Consolas, monospace; }
-      .section { fill: #e6edf3; font: 700 22px 'SFMono-Regular', Consolas, monospace; }
-      .text { fill: #dce3ea; font: 18px 'SFMono-Regular', Consolas, monospace; }
-      .small { fill: #9aa4af; font: 16px 'SFMono-Regular', Consolas, monospace; }
-      .muted { fill: #8b949e; font: 15px 'SFMono-Regular', Consolas, monospace; }
-      .imp { fill: #ffa657; }
-      .expff { fill: #79c0ff; }
-      .expbf { fill: #7ee787; }
-      .rule { stroke: #30363d; stroke-width: 1.5; }
-      .card { fill: #0d1117; stroke: #30363d; stroke-width: 1.5; }
-      .barbg { fill: #2d333b; }
-      .label { fill: #e6edf3; font: 16px 'SFMono-Regular', Consolas, monospace; }
-      .metric { fill: #f0f6fc; font: 700 24px 'SFMono-Regular', Consolas, monospace; }
+      .bg { fill: #0b1220; }
+      .panel { fill: #111827; stroke: #243041; stroke-width: 1.5; }
+      .header { fill: #0f1a2b; stroke: #293548; stroke-width: 1; }
+      .rowA { fill: #101a2a; }
+      .rowB { fill: #0d1624; }
+      .traceCell { fill: #0b1422; }
+      .takeCell { fill: #0b1422; }
+      .impCard { fill: #2a1d06; stroke: #f59e0b; stroke-opacity: 0.35; stroke-width: 1; }
+      .expFFCard { fill: #082032; stroke: #38bdf8; stroke-opacity: 0.35; stroke-width: 1; }
+      .expBFCard { fill: #0b261f; stroke: #34d399; stroke-opacity: 0.35; stroke-width: 1; }
+      .title { fill: #f8fafc; font: 700 32px "DejaVu Sans Mono", monospace; }
+      .subtitle { fill: #9fb3c8; font: 400 15px "DejaVu Sans", sans-serif; }
+      .hdrMain { fill: #f8fafc; font: 700 18px "DejaVu Sans Mono", monospace; }
+      .hdrSub { fill: #94a3b8; font: 400 12px "DejaVu Sans", sans-serif; letter-spacing: 0.08em; text-transform: uppercase; }
+      .trace { fill: #f8fafc; font: 700 22px "DejaVu Sans Mono", monospace; }
+      .traceNote { fill: #7f95ad; font: 400 12px "DejaVu Sans", sans-serif; letter-spacing: 0.06em; text-transform: uppercase; }
+      .metric { fill: #f8fafc; font: 700 27px "DejaVu Sans Mono", monospace; }
+      .metricLabel { fill: #91a4ba; font: 400 12px "DejaVu Sans", sans-serif; letter-spacing: 0.08em; text-transform: uppercase; }
+      .take { fill: #dbe7f3; font: 600 18px "DejaVu Sans", sans-serif; }
+      .takeSoft { fill: #9fb3c8; font: 400 14px "DejaVu Sans", sans-serif; }
+      .imp { fill: #fbbf24; }
+      .expFF { fill: #67e8f9; }
+      .expBF { fill: #6ee7b7; }
     </style>
   </defs>
 
-  <rect class="bg" width="1860" height="1120" rx="18"/>
-  <rect class="panel" x="20" y="20" width="1820" height="1080" rx="16"/>
+  <rect class="bg" x="0" y="0" width="1650" height="760" />
+  <rect class="panel" x="34" y="34" width="1582" height="692" rx="24" />
 
-  <text class="title" x="40" y="64">Implicit / Explicit First Fit / Explicit Best Fit</text>
-  <text class="small" x="40" y="96">Source: clean rebuild + ./mdriver -v on each branch</text>
+  <text class="title" x="70" y="86">Key Trace Comparison</text>
+  <text class="subtitle" x="70" y="116">Metrics are split into stacked cards so utilization, throughput, and takeaways are easier to scan.</text>
 
-  <rect x="40" y="122" width="18" height="18" class="imp" rx="4"/>
-  <text class="text" x="68" y="137">implicit/first_fit</text>
-  <rect x="320" y="122" width="18" height="18" class="expff" rx="4"/>
-  <text class="text" x="348" y="137">explicit/first_fit</text>
-  <rect x="610" y="122" width="18" height="18" class="expbf" rx="4"/>
-  <text class="text" x="638" y="137">explicit/best_fit</text>
+  <rect class="header" x="60" y="154" width="240" height="62" rx="14" />
+  <rect class="header" x="320" y="154" width="220" height="62" rx="14" />
+  <rect class="header" x="560" y="154" width="220" height="62" rx="14" />
+  <rect class="header" x="800" y="154" width="220" height="62" rx="14" />
+  <rect class="header" x="1040" y="154" width="530" height="62" rx="14" />
 
-  <text class="section" x="40" y="190">Overall Summary</text>
-  <line class="rule" x1="40" y1="202" x2="1820" y2="202"/>
+  <text class="hdrMain" x="84" y="191">Trace</text>
+  <text class="hdrSub" x="84" y="209">workload</text>
 
-  <rect class="card" x="40" y="226" width="540" height="150" rx="12"/>
-  <text class="label" x="62" y="256">Version</text>
-  <text class="label" x="250" y="256">Util</text>
-  <text class="label" x="340" y="256">Kops</text>
-  <text class="label" x="450" y="256">Perf</text>
-  <text class="text" x="62" y="292">implicit/first_fit</text>
-  <text class="text" x="250" y="292">74%</text>
-  <text class="text" x="340" y="292">281</text>
-  <text class="text" x="450" y="292">63/100</text>
-  <text class="text" x="62" y="326">explicit/first_fit</text>
-  <text class="text" x="250" y="326">71%</text>
-  <text class="text" x="340" y="326">3433</text>
-  <text class="text" x="450" y="326">82/100</text>
-  <text class="text" x="62" y="360">explicit/best_fit</text>
-  <text class="text" x="250" y="360">75%</text>
-  <text class="text" x="340" y="360">1799</text>
-  <text class="text" x="450" y="360">85/100</text>
+  <text class="hdrMain imp" x="430" y="185" text-anchor="middle">implicit / first_fit</text>
+  <text class="hdrSub" x="430" y="204" text-anchor="middle">util + throughput</text>
 
-  <rect class="card" x="610" y="226" width="590" height="150" rx="12"/>
-  <text class="label" x="632" y="256">Util Winner</text>
-  <text class="metric expbf" x="632" y="294">explicit/best_fit</text>
-  <text class="small" x="632" y="322">75% total utilization</text>
-  <text class="label" x="930" y="256">Speed Winner</text>
-  <text class="metric expff" x="930" y="294">explicit/first_fit</text>
-  <text class="small" x="930" y="322">3433 Kops total throughput</text>
+  <text class="hdrMain expFF" x="670" y="185" text-anchor="middle">explicit / first_fit</text>
+  <text class="hdrSub" x="670" y="204" text-anchor="middle">util + throughput</text>
 
-  <rect class="card" x="1230" y="226" width="590" height="150" rx="12"/>
-  <text class="label" x="1252" y="256">Score Winner</text>
-  <text class="metric expbf" x="1252" y="294">explicit/best_fit</text>
-  <text class="small" x="1252" y="322">85/100 total perf index</text>
-  <text class="small" x="1252" y="350">best-fit gained utilization enough to beat first-fit overall</text>
+  <text class="hdrMain expBF" x="910" y="185" text-anchor="middle">explicit / best_fit</text>
+  <text class="hdrSub" x="910" y="204" text-anchor="middle">util + throughput</text>
 
-  <text class="section" x="40" y="432">Totals At A Glance</text>
-  <line class="rule" x1="40" y1="444" x2="1820" y2="444"/>
+  <text class="hdrMain" x="1070" y="191">Quick take</text>
+  <text class="hdrSub" x="1070" y="209">what matters most</text>
 
-  <text class="label" x="40" y="480">Total Util</text>
-  <rect class="barbg" x="180" y="462" width="520" height="24" rx="10"/>
-  <rect class="imp" x="180" y="462" width="385" height="24" rx="10"/>
-  <rect class="barbg" x="760" y="462" width="520" height="24" rx="10"/>
-  <rect class="expff" x="760" y="462" width="369" height="24" rx="10"/>
-  <rect class="barbg" x="1340" y="462" width="520" height="24" rx="10"/>
-  <rect class="expbf" x="1340" y="462" width="390" height="24" rx="10"/>
-  <text class="small" x="180" y="505">implicit 74%</text>
-  <text class="small" x="760" y="505">explicit first fit 71%</text>
-  <text class="small" x="1340" y="505">explicit best fit 75%</text>
+  <rect class="rowA" x="60" y="238" width="1510" height="94" rx="18" />
+  <rect class="rowB" x="60" y="348" width="1510" height="94" rx="18" />
+  <rect class="rowA" x="60" y="458" width="1510" height="94" rx="18" />
+  <rect class="rowB" x="60" y="568" width="1510" height="94" rx="18" />
 
-  <text class="label" x="40" y="560">Total Kops</text>
-  <rect class="barbg" x="180" y="542" width="520" height="24" rx="10"/>
-  <rect class="imp" x="180" y="542" width="43" height="24" rx="10"/>
-  <rect class="barbg" x="760" y="542" width="520" height="24" rx="10"/>
-  <rect class="expff" x="760" y="542" width="520" height="24" rx="10"/>
-  <rect class="barbg" x="1340" y="542" width="520" height="24" rx="10"/>
-  <rect class="expbf" x="1340" y="542" width="272" height="24" rx="10"/>
-  <text class="small" x="180" y="585">implicit 281</text>
-  <text class="small" x="760" y="585">explicit first fit 3433</text>
-  <text class="small" x="1340" y="585">explicit best fit 1799</text>
+  <rect class="traceCell" x="76" y="250" width="208" height="70" rx="14" />
+  <rect class="traceCell" x="76" y="360" width="208" height="70" rx="14" />
+  <rect class="traceCell" x="76" y="470" width="208" height="70" rx="14" />
+  <rect class="traceCell" x="76" y="580" width="208" height="70" rx="14" />
 
-  <text class="label" x="40" y="640">Perf Index</text>
-  <rect class="barbg" x="180" y="622" width="520" height="24" rx="10"/>
-  <rect class="imp" x="180" y="622" width="328" height="24" rx="10"/>
-  <rect class="barbg" x="760" y="622" width="520" height="24" rx="10"/>
-  <rect class="expff" x="760" y="622" width="426" height="24" rx="10"/>
-  <rect class="barbg" x="1340" y="622" width="520" height="24" rx="10"/>
-  <rect class="expbf" x="1340" y="622" width="442" height="24" rx="10"/>
-  <text class="small" x="180" y="665">implicit 63/100</text>
-  <text class="small" x="760" y="665">explicit first fit 82/100</text>
-  <text class="small" x="1340" y="665">explicit best fit 85/100</text>
+  <rect class="impCard" x="325" y="250" width="210" height="70" rx="14" />
+  <rect class="expFFCard" x="565" y="250" width="210" height="70" rx="14" />
+  <rect class="expBFCard" x="805" y="250" width="210" height="70" rx="14" />
+  <rect class="takeCell" x="1048" y="250" width="514" height="70" rx="14" />
 
-  <text class="section" x="40" y="728">Key Trace Comparison</text>
-  <line class="rule" x1="40" y1="740" x2="1820" y2="740"/>
-  <text class="text" x="40" y="776">Trace              implicit/first_fit      explicit/first_fit      explicit/best_fit       Quick take</text>
-  <text class="text" x="40" y="812">amptjp-bal.rep     99% / 1181 Kops         89% / 45047 Kops        99% / 34635 Kops        best-fit keeps util, first-fit wins speed</text>
-  <text class="text" x="40" y="846">random-bal.rep     92% / 1037 Kops         88% / 15539 Kops        96% / 2261 Kops         best-fit util jump, but speed drops a lot</text>
-  <text class="text" x="40" y="880">binary2-bal.rep    51% / 91 Kops           51% / 28205 Kops        51% / 1133 Kops         first-fit dominates pure throughput here</text>
-  <text class="text" x="40" y="914">realloc-bal.rep    27% / 485 Kops          26% / 492 Kops          31% / 485 Kops          best-fit improves util on realloc-heavy trace</text>
+  <rect class="impCard" x="325" y="360" width="210" height="70" rx="14" />
+  <rect class="expFFCard" x="565" y="360" width="210" height="70" rx="14" />
+  <rect class="expBFCard" x="805" y="360" width="210" height="70" rx="14" />
+  <rect class="takeCell" x="1048" y="360" width="514" height="70" rx="14" />
 
-  <text class="section" x="40" y="974">Bottom Line</text>
-  <line class="rule" x1="40" y1="986" x2="1820" y2="986"/>
-  <text class="text" x="40" y="1022">- implicit/first_fit: simple baseline, slightly better than explicit first-fit on total util, but much slower overall.</text>
-  <text class="text" x="40" y="1054">- explicit/first_fit: fastest search policy of the three, but pays for that with lower space utilization.</text>
-  <text class="text" x="40" y="1086">- explicit/best_fit: best overall score because utilization improves enough to outweigh the slower search.</text>
+  <rect class="impCard" x="325" y="470" width="210" height="70" rx="14" />
+  <rect class="expFFCard" x="565" y="470" width="210" height="70" rx="14" />
+  <rect class="expBFCard" x="805" y="470" width="210" height="70" rx="14" />
+  <rect class="takeCell" x="1048" y="470" width="514" height="70" rx="14" />
+
+  <rect class="impCard" x="325" y="580" width="210" height="70" rx="14" />
+  <rect class="expFFCard" x="565" y="580" width="210" height="70" rx="14" />
+  <rect class="expBFCard" x="805" y="580" width="210" height="70" rx="14" />
+  <rect class="takeCell" x="1048" y="580" width="514" height="70" rx="14" />
+
+  <text class="trace" x="96" y="292">amptjp-bal.rep</text>
+  <text class="traceNote" x="96" y="312">high-util balanced trace</text>
+
+  <text class="trace" x="96" y="402">random-bal.rep</text>
+  <text class="traceNote" x="96" y="422">mixed random workload</text>
+
+  <text class="trace" x="96" y="512">binary2-bal.rep</text>
+  <text class="traceNote" x="96" y="532">pure throughput stress</text>
+
+  <text class="trace" x="96" y="622">realloc-bal.rep</text>
+  <text class="traceNote" x="96" y="642">realloc-heavy pattern</text>
+
+  <text class="metricLabel" x="345" y="276">util</text>
+  <text class="metric" x="345" y="304">99%</text>
+  <text class="metricLabel" x="418" y="276">throughput</text>
+  <text class="metric" x="418" y="304">1,181</text>
+  <text class="metricLabel" x="418" y="319">Kops</text>
+
+  <text class="metricLabel" x="585" y="276">util</text>
+  <text class="metric" x="585" y="304">88%</text>
+  <text class="metricLabel" x="658" y="276">throughput</text>
+  <text class="metric" x="658" y="304">45,047</text>
+  <text class="metricLabel" x="658" y="319">Kops</text>
+
+  <text class="metricLabel" x="825" y="276">util</text>
+  <text class="metric" x="825" y="304">99%</text>
+  <text class="metricLabel" x="898" y="276">throughput</text>
+  <text class="metric" x="898" y="304">34,635</text>
+  <text class="metricLabel" x="898" y="319">Kops</text>
+
+  <text class="take" x="1072" y="286">best-fit keeps utilization high;</text>
+  <text class="takeSoft" x="1072" y="310">explicit first-fit still wins on raw speed.</text>
+
+  <text class="metricLabel" x="345" y="386">util</text>
+  <text class="metric" x="345" y="414">92%</text>
+  <text class="metricLabel" x="418" y="386">throughput</text>
+  <text class="metric" x="418" y="414">1,037</text>
+  <text class="metricLabel" x="418" y="429">Kops</text>
+
+  <text class="metricLabel" x="585" y="386">util</text>
+  <text class="metric" x="585" y="414">88%</text>
+  <text class="metricLabel" x="658" y="386">throughput</text>
+  <text class="metric" x="658" y="414">15,539</text>
+  <text class="metricLabel" x="658" y="429">Kops</text>
+
+  <text class="metricLabel" x="825" y="386">util</text>
+  <text class="metric" x="825" y="414">96%</text>
+  <text class="metricLabel" x="898" y="386">throughput</text>
+  <text class="metric" x="898" y="414">2,261</text>
+  <text class="metricLabel" x="898" y="429">Kops</text>
+
+  <text class="take" x="1072" y="396">best-fit gives the biggest util jump;</text>
+  <text class="takeSoft" x="1072" y="420">the cost is a sharp throughput drop.</text>
+
+  <text class="metricLabel" x="345" y="496">util</text>
+  <text class="metric" x="345" y="524">51%</text>
+  <text class="metricLabel" x="418" y="496">throughput</text>
+  <text class="metric" x="418" y="524">91</text>
+  <text class="metricLabel" x="418" y="539">Kops</text>
+
+  <text class="metricLabel" x="585" y="496">util</text>
+  <text class="metric" x="585" y="524">51%</text>
+  <text class="metricLabel" x="658" y="496">throughput</text>
+  <text class="metric" x="658" y="524">28,205</text>
+  <text class="metricLabel" x="658" y="539">Kops</text>
+
+  <text class="metricLabel" x="825" y="496">util</text>
+  <text class="metric" x="825" y="524">51%</text>
+  <text class="metricLabel" x="898" y="496">throughput</text>
+  <text class="metric" x="898" y="524">1,133</text>
+  <text class="metricLabel" x="898" y="539">Kops</text>
+
+  <text class="take" x="1072" y="506">util is identical across all three;</text>
+  <text class="takeSoft" x="1072" y="530">explicit first-fit dominates pure throughput.</text>
+
+  <text class="metricLabel" x="345" y="606">util</text>
+  <text class="metric" x="345" y="634">27%</text>
+  <text class="metricLabel" x="418" y="606">throughput</text>
+  <text class="metric" x="418" y="634">485</text>
+  <text class="metricLabel" x="418" y="649">Kops</text>
+
+  <text class="metricLabel" x="585" y="606">util</text>
+  <text class="metric" x="585" y="634">26%</text>
+  <text class="metricLabel" x="658" y="606">throughput</text>
+  <text class="metric" x="658" y="634">492</text>
+  <text class="metricLabel" x="658" y="649">Kops</text>
+
+  <text class="metricLabel" x="825" y="606">util</text>
+  <text class="metric" x="825" y="634">31%</text>
+  <text class="metricLabel" x="898" y="606">throughput</text>
+  <text class="metric" x="898" y="634">485</text>
+  <text class="metricLabel" x="898" y="649">Kops</text>
+
+  <text class="take" x="1072" y="616">best-fit improves utilization on reallocs;</text>
+  <text class="takeSoft" x="1072" y="640">throughput stays roughly unchanged here.</text>
 </svg>
