@@ -15,140 +15,138 @@ team_t team = {
     ""};
 
 /*
- * 이 구현은 explicit free list 방식의 메모리 할당기입니다.
+ * explicit free list 기반의 메모리 할당기입니다.
  *
- * 핵심 아이디어는 간단합니다.
- * 1. free block만 따로 연결 리스트로 관리합니다.
- * 2. malloc은 힙 전체가 아니라 free list만 훑어서 블록을 찾습니다.
- * 3. free된 블록은 free list 맨 앞에 다시 넣습니다.
- * 4. 인접한 free block이 있으면 하나의 큰 block으로 합칩니다.
+ * 1. 사용 중인 블록과 비어 있는 블록을 모두 힙에 배치합니다.
+ * 2. 비어 있는 블록(free block)만 따로 연결 리스트로 관리합니다.
+ * 3. malloc은 전체 힙을 보지 않고 이 free list에서만 블록을 찾습니다.
+ * 4. free된 블록은 리스트로 되돌리고, 주변 free 블록이 있으면 합칩니다.
+ * 5. 이 구현은 free list에서 가장 잘 맞는 블록을 찾아내는 best-fit 전략을 사용합니다.
  */
 
 /*
- * WSIZE는 header 또는 footer 한 칸의 크기입니다.
- * 이 과제의 기본 block 메타데이터는 4바이트 단위로 저장합니다.
+ * WSIZE는 header 또는 footer에 들어가는 메타데이터 크기입니다.
+ * 이 구현에서는 header/footer가 4바이트로 저장됩니다.
  */
 #define WSIZE 4
 
 /*
- * DSIZE는 8바이트입니다.
- * 이 값은 정렬 단위이자 header+footer의 총 크기로도 쓰입니다.
+ * DSIZE는 블록 정렬 기준과 prologue 블록 크기에 사용합니다.
+ * 대부분 환경에서 8바이트 정렬은 효율적인 메모리 접근을 보장합니다.
  */
 #define DSIZE 8
 
 /*
  * PTRSIZE는 포인터 크기입니다.
- * 지금 환경은 64비트라 보통 8바이트입니다.
- * explicit free list의 prev/next 포인터 저장에 사용합니다.
+ * 이 시스템은 64비트이므로 보통 8바이트입니다.
+ * explicit free list의 prev/next 포인터를 저장할 때 사용합니다.
  */
 #define PTRSIZE sizeof(void *)
 
 /*
- * CHUNKSIZE는 힙을 한 번 늘릴 때 기본으로 확보할 크기입니다.
- * 너무 조금씩 늘리면 비효율적이라 4KB 단위로 요청합니다.
+ * CHUNKSIZE는 힙을 한 번에 늘릴 기본 단위입니다.
+ * 너무 작은 단위로 자주 요청하면 성능이 떨어집니다.
  */
 #define CHUNKSIZE (1 << 12)
 
 /*
- * ALIGN은 어떤 크기를 8바이트 배수로 올림합니다.
- * 예를 들어 13이면 16으로, 24면 그대로 24로 맞춥니다.
+ * ALIGN은 입력 크기를 8바이트 경계로 맞춥니다.
+ * 8바이트 정렬은 대부분 시스템에서 안정적인 메모리 접근을 돕습니다.
  */
 #define ALIGN(size) (((size) + (DSIZE - 1)) & ~0x7)
 
 /*
- * MAX는 두 값 중 더 큰 값을 고릅니다.
- * 힙 확장 크기를 계산할 때 사용합니다.
+ * MAX는 두 값 중 큰 값을 반환합니다.
+ * 힙을 확장할 때 요청 크기와 기본 확장 크기 중 큰 쪽을 사용합니다.
  */
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
 
 /*
  * explicit free list의 free block은
  * [header][prev ptr][next ptr][...][footer]
- * 형태를 가져야 합니다.
+ * 구조를 가집니다.
  *
- * 그래서 최소 free block 크기는
- * header 4 + prev 8 + next 8 + footer 4 = 24바이트이고,
- * 24는 이미 8의 배수라 그대로 최소 크기로 사용할 수 있습니다.
+ * header/footer는 블록 크기와 사용 여부를 저장합니다.
+ * prev/next 포인터는 free list에서 앞뒤 블록을 연결합니다.
  *
- * 이 구현에서는 free된 모든 block이 free list에 들어가야 하므로,
- * allocated block도 최소한 이 크기 이상으로 잡아 두어야
+ * 따라서 최소 free block 크기는 다음과 같습니다.
+ *   header 4 + prev 8 + next 8 + footer 4 = 24바이트
+ * 이는 8바이트 정렬에도 맞기 때문에 MINBLOCKSIZE로 사용합니다.
+ *
+ * 이 구현에서는 free된 모든 블록이 free list에 들어가야 합니다.
+ * 그래서 alloc된 블록도 최소 크기를 이 값 이상으로 만들어야
  * 나중에 free될 때 prev/next 포인터를 저장할 수 있습니다.
  */
 #define MINBLOCKSIZE ALIGN(2 * WSIZE + 2 * PTRSIZE)
 
 /*
- * PACK은 block size와 alloc 비트를 하나의 값으로 합칩니다.
- * alloc이 1이면 사용 중, 0이면 free 상태입니다.
+ * PACK은 블록 크기와 사용 여부 비트를 하나의 값으로 결합합니다.
+ * header/footer에 저장할 때 사용합니다.
  */
 #define PACK(size, alloc) ((size) | (alloc))
 
 /*
  * GET은 주소 p에 저장된 4바이트 값을 읽습니다.
- * header/footer는 이 매크로로 읽습니다.
  */
 #define GET(p) (*(unsigned int *)(p))
 
 /*
  * PUT은 주소 p에 4바이트 값을 씁니다.
- * header/footer를 기록할 때 사용합니다.
  */
 #define PUT(p, val) (*(unsigned int *)(p) = (val))
 
 /*
- * GET_SIZE는 header/footer에서 block size 부분만 꺼냅니다.
- * 아래 3비트는 정렬과 alloc 비트 때문에 size 정보가 아니므로 제거합니다.
+ * GET_SIZE는 header/footer 값에서 크기만 골라냅니다.
+ * 마지막 3비트는 정렬과 alloc 정보이므로 없앱니다.
  */
 #define GET_SIZE(p) (GET(p) & ~0x7)
 
 /*
- * GET_ALLOC은 header/footer에서 alloc 비트만 꺼냅니다.
- * 결과가 1이면 allocated, 0이면 free입니다.
+ * GET_ALLOC은 header/footer에서 사용 여부 비트만 추출합니다.
+ * 1이면 사용 중, 0이면 자유 상태입니다.
  */
 #define GET_ALLOC(p) (GET(p) & 0x1)
 
 /*
- * HDRP는 payload 포인터 bp에서 해당 block의 header 주소를 계산합니다.
+ * HDRP는 블록 payload 포인터 bp에서 header 위치를 계산합니다.
  */
 #define HDRP(bp) ((char *)(bp) - WSIZE)
 
 /*
- * FTRP는 payload 포인터 bp에서 해당 block의 footer 주소를 계산합니다.
- * block 전체 크기에서 header와 footer 위치 관계를 이용합니다.
+ * FTRP는 블록 payload 포인터 bp에서 footer 위치를 계산합니다.
  */
 #define FTRP(bp) ((char *)(bp) + GET_SIZE(HDRP(bp)) - DSIZE)
 
 /*
- * NEXT_BLKP는 현재 block 바로 다음 block의 payload 시작 주소를 구합니다.
+ * NEXT_BLKP는 현재 블록 다음에 있는 블록의 payload 시작 주소를 구합니다.
  */
 #define NEXT_BLKP(bp) ((char *)(bp) + GET_SIZE(HDRP(bp)))
 
 /*
- * PREV_BLKP는 현재 block 바로 앞 block의 payload 시작 주소를 구합니다.
- * 이전 block의 footer에 저장된 size를 읽어서 뒤로 이동합니다.
+ * PREV_BLKP는 이전 블록의 payload 시작 주소를 구합니다.
+ * 이전 블록 footer에 있는 크기 정보를 사용합니다.
  */
 #define PREV_BLKP(bp) ((char *)(bp) - GET_SIZE((char *)(bp) - DSIZE))
 
 /*
- * PRED_PTR는 free block payload의 맨 앞 칸을 이전 free block 포인터로 봅니다.
- * 즉 bp 위치에는 prev 포인터가 저장됩니다.
+ * PRED_PTR는 free 블록에서 이전 free 블록 포인터를 가리킵니다.
  */
 #define PRED_PTR(bp) (*(void **)(bp))
 
 /*
- * SUCC_PTR는 free block payload의 그다음 칸을 다음 free block 포인터로 봅니다.
- * 즉 bp + PTRSIZE 위치에는 next 포인터가 저장됩니다.
+ * SUCC_PTR는 free 블록에서 다음 free 블록 포인터를 가리킵니다.
  */
 #define SUCC_PTR(bp) (*(void **)((char *)(bp) + PTRSIZE))
 
 /*
- * heap_listp는 힙의 시작 쪽을 가리키는 기준 포인터입니다.
- * 보통 prologue block의 payload 위치를 가리키게 됩니다.
+ * heap_listp는 힙 시작부분의 기준점입니다.
+ * prologue 블록의 payload 위치를 가리킵니다.
  */
 static char *heap_listp = NULL;
 
 /*
- * free_listp는 explicit free list의 첫 번째 free block을 가리킵니다.
- * free block이 하나도 없으면 NULL입니다.
+ * free_listp는 free 블록들을 연결한 explicit free list의 첫 블록입니다.
+ * 리스트가 비어 있으면 NULL입니다.
  */
 static void *free_listp = NULL;
 
@@ -215,10 +213,16 @@ static void remove_free_block(void *bp)
 }
 
 /*
- * mm_init은 allocator가 사용할 초기 힙 구조를 만듭니다.
+ * mm_init은 allocator가 처음 시작할 때 호출됩니다.
  *
- * 맨 앞에는 padding, prologue, epilogue를 두어서
- * 경계 조건을 단순하게 처리합니다.
+ * 이 함수는 힙의 맨 앞에 '약속된 공간'을 만들어 둡니다.
+ * 이 약속 공간은 경계 처리(힙의 처음과 끝)를 단순하게 하기 위해서입니다.
+ *
+ * 구조는 다음과 같습니다.
+ *   [패딩][prologue header][prologue footer][epilogue header]
+ *
+ * prologue와 epilogue는 실제로 사용되는 데이터가 아니라,
+ * 블록 검색과 병합을 쉽게 해주는 가짜 블록입니다.
  */
 int mm_init(void)
 {
@@ -226,8 +230,7 @@ int mm_init(void)
     free_listp = NULL;
 
     /*
-     * 힙 시작 부분에 필요한 기본 구조를 만들기 위해 4워드를 확보합니다.
-     * [padding][prologue header][prologue footer][epilogue header]
+     * 힙의 맨 앞에 4워드를 확보하여 prologue/epilogue를 만듭니다.
      */
     heap_listp = mem_sbrk(4 * WSIZE);
 
@@ -262,8 +265,10 @@ int mm_init(void)
 }
 
 /*
- * extend_heap은 memlib에서 새 힙 공간을 받아 free block 하나를 만듭니다.
- * 그리고 그 뒤에는 새 epilogue header를 다시 붙입니다.
+ * extend_heap은 힙을 더 사용할 수 있도록 시스템에서 메모리를 추가로 받습니다.
+ *
+ * 받은 메모리 영역은 처음에는 하나의 큰 free block으로 생각합니다.
+ * 그리고 그 뒤에 다시 epilogue header를 붙여 힙 끝을 표시합니다.
  */
 static void *extend_heap(size_t words)
 {
@@ -271,12 +276,12 @@ static void *extend_heap(size_t words)
     size_t size;
 
     /*
-     * block 크기는 8바이트 정렬이 맞아야 하므로,
-     * word 개수가 홀수면 하나 더 늘려 짝수 워드로 맞춥니다.
+     * 힙 영역은 8바이트 정렬이 필요하므로,
+     * 단어 개수가 홀수이면 하나를 더 늘려서 짝수로 맞춥니다.
      */
     size = (words % 2) ? (words + 1) * WSIZE : words * WSIZE;
 
-    /* 필요한 만큼 힙을 늘리고, 새 영역 시작 주소를 받습니다. */
+    /* 필요한 만큼 힙을 늘리고, 새 영역의 시작 주소를 받습니다. */
     bp = mem_sbrk(size);
 
     /* 힙을 더 늘릴 수 없으면 실패입니다. */
@@ -299,16 +304,18 @@ static void *extend_heap(size_t words)
 }
 
 /*
- * coalesce는 방금 free된 block 주변에 free block이 있는지 확인해서 병합합니다.
- * explicit free list에서는 병합되기 전에 기존 free block들을 리스트에서 빼고,
- * 병합이 끝난 새 block을 다시 리스트에 넣어야 합니다.
+ * coalesce는 방금 free된 블록 주변에 또 다른 free 블록이 있는지 확인합니다.
+ *
+ * 만약 앞쪽이나 뒤쪽 블록이 비어 있다면 하나의 더 큰 블록으로 합칩니다.
+ * 이 과정에서 free list에 있던 작은 블록들은 먼저 목록에서 제거하고,
+ * 병합된 뒤에 다시 목록에 넣습니다.
  */
 static void *coalesce(void *bp)
 {
-    /* 이전 block이 allocated인지 free인지 확인합니다. */
+    /* 이전 블록이 비어 있는지 확인합니다. */
     size_t prev_alloc = GET_ALLOC(FTRP(PREV_BLKP(bp)));
 
-    /* 다음 block이 allocated인지 free인지 확인합니다. */
+    /* 다음 블록이 비어 있는지 확인합니다. */
     size_t next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp)));
 
     /* 현재 block의 크기를 읽어 둡니다. */
@@ -356,8 +363,10 @@ static void *coalesce(void *bp)
 }
 
 /*
- * find_fit은 explicit free list 안에서 요청 크기에 가장 잘 맞는 free block을 찾습니다.
- * 이 구현은 best fit이므로, 끝까지 순회하면서 남는 공간이 가장 적은 block을 고릅니다.
+ * find_fit은 free 목록에서 요청한 크기에 가장 잘 맞는 블록을 찾습니다.
+ *
+ * best-fit 전략이므로, 충분히 크면서도 남는 공간이 가장 작은 블록을 선택합니다.
+ * 이 블록이 가장 알맞다고 판단되면 그 블록의 위치를 반환합니다.
  */
 static void *find_fit(size_t asize)
 {
@@ -405,8 +414,11 @@ static void *find_fit(size_t asize)
 }
 
 /*
- * place는 찾은 free block 안에 allocated block을 실제로 배치합니다.
- * 남는 조각이 너무 작지 않으면 split해서 뒤쪽을 다시 free block으로 남깁니다.
+ * place는 find_fit으로 찾은 free 블록에 실제 데이터를 넣을 준비를 합니다.
+ *
+ * 블록이 요청 크기보다 크면, 앞쪽은 할당된 공간으로 쓰고
+ * 뒤쪽 남는 부분은 새로운 free 블록으로 남깁니다.
+ * 남는 부분이 너무 작으면 분할하지 않고 전체 블록을 할당합니다.
  */
 static void place(void *bp, size_t asize)
 {
@@ -447,7 +459,10 @@ static void place(void *bp, size_t asize)
 }
 
 /*
- * mm_malloc은 사용자가 요청한 크기 이상의 payload를 담을 block을 반환합니다.
+ * mm_malloc은 사용자의 요청 크기를 만족하는 메모리 블록을 찾아 반환합니다.
+ *
+ * 먼저 필요한 크기를 계산하고 free list에서 찾습니다.
+ * 없으면 힙을 더 늘려서 새 블록을 만든 뒤 사용합니다.
  */
 void *mm_malloc(size_t size)
 {
@@ -499,7 +514,10 @@ void *mm_malloc(size_t size)
 }
 
 /*
- * mm_free는 allocated block을 free 상태로 바꾸고, 가능하면 주변과 합칩니다.
+ * mm_free는 사용한 블록을 다시 비어 있는 상태로 돌립니다.
+ *
+ * 이때 주변 블록도 같이 비어 있으면 하나로 합쳐서
+ * 다음에 더 큰 블록을 만들 수 있게 합니다.
  */
 void mm_free(void *ptr)
 {
@@ -526,8 +544,10 @@ void mm_free(void *ptr)
 }
 
 /*
- * mm_realloc은 가장 단순한 방식으로 구현합니다.
- * 새 block을 malloc으로 받은 뒤, 기존 데이터를 복사하고, 이전 block을 free합니다.
+ * mm_realloc은 이미 할당된 블록의 크기를 바꿉니다.
+ *
+ * 이 구현은 간단한 방법으로, 새 블록을 만들고 데이터를 복사한 뒤
+ * 기존 블록을 해제합니다.
  */
 void *mm_realloc(void *ptr, size_t size)
 {
